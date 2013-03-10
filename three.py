@@ -1,4 +1,2 @@
-others = ['TsrHnt']
-
-
+others = ['cnn']
 subjects=[others]

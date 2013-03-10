@@ -80,7 +80,7 @@ class Summary:
     def get2tag(self,tag):
     #currently - removes data between p and title tags
     #goal - removing data between any tag
-        w={'&nbsp;':' ','&amp;':'&','&#8226;':'','&copy':'©','&#149;':'','&#39;':''}
+	w={}
         l=len(tag)+2
         z=re.compile('<'+tag+'>.*?<\/'+tag+'>',re.DOTALL).findall(self.y)
         if(len(z)==0):
