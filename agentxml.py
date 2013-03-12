@@ -1,4 +1,5 @@
 #! /usr/bin/python
+# -*- coding: utf-8 -*-
 """
 Copyright 2004, 2013 Vishwas Bhat, Apurva Pangam, Tarun Makhija, Vineet Jalali
 This file is part of hbcse-crawler.
@@ -18,15 +19,71 @@ along with hbcse-crawler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import urllib, urlparse, sys, re, md5, os
-from sgmllib import SGMLParser
+import sgmllib, string
 
-from tagstrip import *              # use of tagscript.py
+class StrippingParser(sgmllib.SGMLParser):
 
-class URLLister(SGMLParser):
+    # These are the HTML tags that we will leave intact
+    valid_tags = ()
+
+    from htmlentitydefs import entitydefs # replace entitydefs from sgmllib
+
+    def __init__(self):
+        sgmllib.SGMLParser.__init__(self)
+        self.result = ""
+        self.endTagList = []
+
+    def handle_data(self, data):
+        if data:
+            self.result = self.result + data
+
+    def handle_charref(self, name):
+        self.result = "%s&#%s;" % (self.result, name)
+
+    def handle_entityref(self, name):
+        if self.entitydefs.has_key(name):
+            x = ';'
+        else:
+            # this breaks unstandard entities that end with ';'
+            x = ''
+        self.result = "%s&%s%s" % (self.result, name, x)
+
+    def unknown_starttag(self, tag, attrs):
+        """ Delete all tags except for legal ones """
+        if tag in self.valid_tags:
+            self.result = self.result + '<' + tag
+            for k, v in attrs:
+                if string.lower(k[0:2]) != 'on' and string.lower(v[0:10]) != 'javascript':
+                    self.result = '%s %s="%s"' % (self.result, k, v)
+            endTag = '</%s>' % tag
+            self.endTagList.insert(0,endTag)
+            self.result = self.result + '>'
+
+    def unknown_endtag(self, tag):
+        if tag in self.valid_tags:
+            self.result = "%s</%s>" % (self.result, tag)
+            remTag = '</%s>' % tag
+            self.endTagList.remove(remTag)
+
+    def cleanup(self):
+        """ Append missing closing tags """
+        for j in range(len(self.endTagList)):
+                self.result = self.result + self.endTagList[j]
+
+
+def strip(s):
+    """ Strip illegal HTML tags from string s """
+    parser = StrippingParser()
+    parser.feed(s)
+    parser.close()
+    parser.cleanup()
+    return parser.result
+
+class URLLister(sgmllib.SGMLParser):
     """needs sgmllib from SGMLParser
     """
     def reset(self):
-        SGMLParser.reset(self)
+        sgmllib.SGMLParser.reset(self)
         self.urls = []
 
     def start_a(self, attrs):
@@ -53,7 +110,7 @@ def validurl(site):
 
 class Summary:
 
-    def __init__(self,site,i):
+    def __init__(self,site,i,config,topics):
         """initialises the object
         site   site url
         x[]    site url as an instance,flag
@@ -66,6 +123,8 @@ class Summary:
         weights weighted vector
         """
         self.site = site
+	self.topics=topics
+   	self.config=config
         self.sign = md5.new()
         self.ply=i
         self.npara=0
@@ -84,7 +143,7 @@ class Summary:
             self.weights= ['']
 
     def checkmd5(self):
-        file1 = open(config["path"]+'md5.txt','r')
+        file1 = open(os.path.join(path,'md5.txt'),'r')
         x=file1.readline()
         while x:
             x=x.replace('\n','')
@@ -97,7 +156,8 @@ class Summary:
     def get2tag(self,tag):
     #currently - removes data between p and title tags
     #goal - removing data between any tag
-	w={}
+        w={}
+#w={'&nbsp;':' ','&amp;':'&','&#8226;':'','&copy':'©','&#149;':'','&#39;':''}
         l=len(tag)+2
         z=re.compile('<'+tag+'>.*?<\/'+tag+'>',re.DOTALL).findall(self.y)
         if(len(z)==0):
@@ -136,13 +196,12 @@ class Summary:
     #provides the weighted vector based on the lists in three.py
     #goal - need to iterate over various lists in the file (bio, chem,...)
         flag=0
-        for x in subjects:
-            for a in x:
-                z= re.compile(a).findall(self.y)
-                if len(z)>=config["threshold"]:
-                    print 'Number of matches for',a,'=', len(z)
-                    self.weights.append((a,len(z)))
-                    flag=1
+        for x in self.topics["others"]:
+            z= re.compile(x).findall(self.y)
+            if len(z)>=self.config["threshold"]:
+                print 'Number of matches for',x,'=', len(z)
+                self.weights.append((x,len(z)))
+                flag=1
         return flag
 
 
@@ -160,10 +219,10 @@ class Summary:
                         else:
                             site2=self.site+url
                         print site2
-                        z=Summary(site2,self.ply-1)
+                        z=Summary(site2,self.ply-1, self.config, self.topics)
                     else:
                         print url
-                        z=Summary(url,self.ply-1)
+                        z=Summary(url,self.ply-1, self.config, self.topics)
                     if self.sign.digest() != z.sign.digest():
                         z.run()
         parser.close()
@@ -174,13 +233,13 @@ class Summary:
             print '------------------------------------------------------------------------------------------------------------'
             print 'TITLE: ', self.get2tag('title')
             self.get2tag('p')
-            file2 = open(config["path"]+'md5.txt','a')
+            file2 = open(os.path.join(path,'md5.txt'),'a')
             file2.write(repr(self.sign.digest())+'\n')
             file2.close()
             flag=self.getvector()
             if(flag==1):
                 self.write2file()
-                config["filenumber"]=config["filenumber"]+1
+                self.config["filenumber"]=self.config["filenumber"]+1
             print '------------------------------------------------------------------------------------------------------------'
             print
             if(self.ply>=1):
@@ -188,46 +247,50 @@ class Summary:
 
     def write2file(self):
         """ prints the class instance to the file """
-        file1 = open(config["path"]+'page'+repr(config["filenumber"])+'.html','w')
+        file1 = open(self.config["path"]+'/page'+repr(self.config["filenumber"])+'.html','w')
         file1.write(self.y)
         file1.close()
 
-        file_summary = open(config["path"]+'page'+repr(config["filenumber"])+'.xml','w')
-        file_summary.write('<?xml version="1.0" encoding="ISO-8859-1"?>')
-        file_summary.write('<summary>')
-        file_summary.write('\n\n')
-        file_summary.write('<siteurl>'+self.site+'</siteurl>')
-        file_summary.write('\n\n')
-        file_summary.write('<title>'+self.title+'</title>')
-        file_summary.write('\n\n')
-        file_summary.write('<md5>'+repr(self.sign.digest())+'</md5>')
-        file_summary.write('\n\n')
-        file_summary.write('<ply>'+repr(self.ply)+'</ply>')
-        file_summary.write('\n\n')
+        file = open(self.config["path"]+'/page'+repr(self.config["filenumber"])+'.xml','w')
+        file.write('<?xml version="1.0" encoding="ISO-8859-1"?>')
+        file.write('<summary>')
+        file.write('\n\n')
+        file.write('<siteurl>'+self.site+'</siteurl>')
+        file.write('\n\n')
+        file.write('<title>'+self.title+'</title>')
+        file.write('\n\n')
+        file.write('<md5>'+repr(self.sign.digest())+'</md5>')
+        file.write('\n\n')
+        file.write('<ply>'+repr(self.ply)+'</ply>')
+        file.write('\n\n')
         for i in range(self.npara):
-            file_summary.write('<paragraph'+repr(i)+'>'+self.para[i]+'</paragraph'+repr(i)+'>')
-            file_summary.write('\n\n')
+            file.write('<paragraph'+repr(i)+'>'+self.para[i]+'</paragraph'+repr(i)+'>')
+            file.write('\n\n')
         for i in range(len(self.weights)):
-            file_summary.write('<weight'+repr(i)+'>'+repr(self.weights[i])+'</weight'+repr(i)+'>')
-            file_summary.write('\n\n')
-        file_summary.write('</summary>')
-        file_summary.close()
+            file.write('<weight'+repr(i)+'>'+repr(self.weights[i])+'</weight'+repr(i)+'>')
+            file.write('\n\n')
+        file.write('</summary>')
+        file.close()
 
 if __name__ == "__main__":
     config = {}
     execfile("config/config.conf", config) 
-    
-    subjects = {}
-    execfile("config/subjects.conf", subjects)
+    topics = {}
+    execfile("config/subjects.conf", topics)
 
-    file = open(config["path"]+'md5.txt','w')
+    path = os.path.join(os.getcwd(),'data')
+    if not os.path.exists(path):
+        os.mkdir(path)
+    file = open(os.path.join(path,'md5.txt'),'w')
     file.close()
+    config["path"] = path
+
     site = raw_input('Enter the Start site: ')
     length = raw_input('Enter the ply length: ')
-    x=Summary(site,int(length))
+    x=Summary(site,int(length), config, topics)
     x.run()
+
     file = open('config/config.conf','w')
-    file.write('path = ' + repr(config["path"]) + '\n' )
     file.write('filenumber = '+repr(config["filenumber"])+'\n')
     file.write('threshold = '+repr(config["threshold"]))
     file.close()
