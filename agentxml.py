@@ -25,7 +25,6 @@ class StrippingParser(sgmllib.SGMLParser):
 
     # These are the HTML tags that we will leave intact
     valid_tags = ()
-
     from htmlentitydefs import entitydefs # replace entitydefs from sgmllib
 
     def __init__(self):
@@ -110,7 +109,7 @@ def validurl(site):
 
 class Summary:
 
-    def __init__(self,site,i,config,topics):
+    def __init__(self,site,i,config):
         """initialises the object
         site   site url
         x[]    site url as an instance,flag
@@ -123,7 +122,6 @@ class Summary:
         weights weighted vector
         """
         self.site = site
-	self.topics=topics
    	self.config=config
         self.sign = md5.new()
         self.ply=i
@@ -196,7 +194,7 @@ class Summary:
     #provides the weighted vector based on the lists in three.py
     #goal - need to iterate over various lists in the file (bio, chem,...)
         flag=0
-        for x in self.topics["others"]:
+        for x in self.config["others"]:
             z= re.compile(x).findall(self.y)
             if len(z)>=self.config["threshold"]:
                 print 'Number of matches for',x,'=', len(z)
@@ -219,10 +217,10 @@ class Summary:
                         else:
                             site2=self.site+url
                         print site2
-                        z=Summary(site2,self.ply-1, self.config, self.topics)
+                        z=Summary(site2,self.ply-1, self.config)
                     else:
                         print url
-                        z=Summary(url,self.ply-1, self.config, self.topics)
+                        z=Summary(url,self.ply-1, self.config)
                     if self.sign.digest() != z.sign.digest():
                         z.run()
         parser.close()
@@ -275,8 +273,6 @@ class Summary:
 if __name__ == "__main__":
     config = {}
     execfile("config/config.conf", config) 
-    topics = {}
-    execfile("config/subjects.conf", topics)
 
     path = os.path.join(os.getcwd(),'data')
     if not os.path.exists(path):
@@ -287,7 +283,7 @@ if __name__ == "__main__":
 
     site = raw_input('Enter the Start site: ')
     length = raw_input('Enter the ply length: ')
-    x=Summary(site,int(length), config, topics)
+    x=Summary(site,int(length), config)
     x.run()
 
     file = open('config/config.conf','w')
