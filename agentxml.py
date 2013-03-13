@@ -18,13 +18,15 @@ You should have received a copy of the GNU General Public License
 along with hbcse-crawler.  If not, see <http://www.gnu.org/licenses/>. 
 """
 
-import urllib, urlparse, sys, re, md5, os
-import sgmllib, string
+import urllib, urlparse, re, md5, os, sgmllib, string, datetime
 
 config_file = "crawler.conf"
 site_q = "Enter the start site: "
 ply_q = "Enter the ply length: "
 data_dir="data"
+filenumber = 86
+others = ['cnn', 'india']
+threshold = 1
 
 class StrippingParser(sgmllib.SGMLParser):
 
@@ -241,7 +243,6 @@ class Summary:
             flag=self.getvector()
             if(flag==1):
                 self.write2file()
-                self.config["filenumber"] += 1
             print '----------------------------'
             print
             if(self.ply>=1):
@@ -249,7 +250,7 @@ class Summary:
 
     def write2file(self):
         """ prints the class instance to the file """
-	part_file_name = self.config["path"]+'/page'+repr(self.config["filenumber"]);
+	part_file_name = self.config["path"]+'/page'+str(datetime.datetime.now());
 
         file = open(part_file_name+'.html','w')
         file.write(self.y)
@@ -278,6 +279,7 @@ if __name__ == "__main__":
     if not os.path.exists(path):
         os.mkdir(path)
     config["path"] = path
+    config["threshold"] = threshold
 
     # User input
     site = raw_input(site_q)
@@ -285,12 +287,5 @@ if __name__ == "__main__":
 
     # Run the program
     Summary(site, int(length), config).run()
-
-    # Save final state
-    file = open(config_file, 'w')
-    file.write('filenumber = '+repr(config["filenumber"])+'\n')
-    file.write('threshold = '+repr(config["threshold"])+'\n')
-    file.write('others = '+repr(config["others"]))
-    file.close()
 
 
