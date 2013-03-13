@@ -21,6 +21,11 @@ along with hbcse-crawler.  If not, see <http://www.gnu.org/licenses/>.
 import urllib, urlparse, sys, re, md5, os
 import sgmllib, string
 
+config_file = "crawler.conf"
+site_q = "Enter the start site: "
+ply_q = "Enter the ply length: "
+data_dir="data"
+
 class StrippingParser(sgmllib.SGMLParser):
 
     # These are the HTML tags that we will leave intact
@@ -138,10 +143,10 @@ class Summary:
             self.x[0].close()
             self.para=['','']
             self.title=''
-            self.weights= ['']
+            self.weights= []
 
     def checkmd5(self):
-        file1 = open(os.path.join(path,'md5.txt'),'r')
+        file1 = open(os.path.join(path,'md5.txt'),'w+')
         x=file1.readline()
         while x:
             x=x.replace('\n','')
@@ -154,8 +159,7 @@ class Summary:
     def get2tag(self,tag):
     #currently - removes data between p and title tags
     #goal - removing data between any tag
-        w={}
-#w={'&nbsp;':' ','&amp;':'&','&#8226;':'','&copy':'©','&#149;':'','&#39;':''}
+	w={'&nbsp;':' ','&amp;':'&','&#8226;':'','&copy':'©','&#149;':'','&#39;':''}
         l=len(tag)+2
         z=re.compile('<'+tag+'>.*?<\/'+tag+'>',re.DOTALL).findall(self.y)
         if(len(z)==0):
@@ -177,7 +181,7 @@ class Summary:
                 while z[i][m]<>'>':
                     m=m+1
                 y= z[i][m+1:len(z[i])-l-1]
-                y=strip(y)
+                y=y.strip()
                 y=urllib.unquote(y)
                 for a in w.keys():
                    y= y.replace(a,w[a])
@@ -197,9 +201,9 @@ class Summary:
         for x in self.config["others"]:
             z= re.compile(x).findall(self.y)
             if len(z)>=self.config["threshold"]:
-                print 'Number of matches for',x,'=', len(z)
-                self.weights.append((x,len(z)))
                 flag=1
+            self.weights.append((x,len(z)))
+            print 'Number of matches for',x,'=', len(z)
         return flag
 
 
@@ -228,7 +232,7 @@ class Summary:
     def run(self):
         if self.x[1]==1:
             print
-            print '------------------------------------------------------------------------------------------------------------'
+            print '----------------------------'
             print 'TITLE: ', self.get2tag('title')
             self.get2tag('p')
             file2 = open(os.path.join(path,'md5.txt'),'a')
@@ -237,58 +241,56 @@ class Summary:
             flag=self.getvector()
             if(flag==1):
                 self.write2file()
-                self.config["filenumber"]=self.config["filenumber"]+1
-            print '------------------------------------------------------------------------------------------------------------'
+                self.config["filenumber"] += 1
+            print '----------------------------'
             print
             if(self.ply>=1):
                 self.loopurl()
 
     def write2file(self):
         """ prints the class instance to the file """
-        file1 = open(self.config["path"]+'/page'+repr(self.config["filenumber"])+'.html','w')
-        file1.write(self.y)
-        file1.close()
+	part_file_name = self.config["path"]+'/page'+repr(self.config["filenumber"]);
 
-        file = open(self.config["path"]+'/page'+repr(self.config["filenumber"])+'.xml','w')
+        file = open(part_file_name+'.html','w')
+        file.write(self.y)
+        file.close()
+
+        file = open(part_file_name+'.xml','w')
         file.write('<?xml version="1.0" encoding="ISO-8859-1"?>')
-        file.write('<summary>')
-        file.write('\n\n')
-        file.write('<siteurl>'+self.site+'</siteurl>')
-        file.write('\n\n')
-        file.write('<title>'+self.title+'</title>')
-        file.write('\n\n')
-        file.write('<md5>'+repr(self.sign.digest())+'</md5>')
-        file.write('\n\n')
-        file.write('<ply>'+repr(self.ply)+'</ply>')
-        file.write('\n\n')
+        file.write('<summary>\n')
+        file.write('<siteurl>'+self.site+'</siteurl>\n')
+        file.write('<title>'+self.title+'</title>\n')
+        file.write('<md5>'+repr(self.sign.digest())+'</md5>\n')
+        file.write('<ply>'+repr(self.ply)+'</ply>\n')
         for i in range(self.npara):
-            file.write('<paragraph'+repr(i)+'>'+self.para[i]+'</paragraph'+repr(i)+'>')
-            file.write('\n\n')
+            file.write('<paragraph'+repr(i)+'>'+self.para[i]+'</paragraph'+repr(i)+'>\n')
         for i in range(len(self.weights)):
-            file.write('<weight'+repr(i)+'>'+repr(self.weights[i])+'</weight'+repr(i)+'>')
-            file.write('\n\n')
+            file.write('<weight'+repr(i)+'>'+repr(self.weights[i])+'</weight'+repr(i)+'>\n')
         file.write('</summary>')
         file.close()
 
 if __name__ == "__main__":
+    # Initialization
     config = {}
-    execfile("config/config.conf", config) 
+    execfile(config_file, config) 
 
-    path = os.path.join(os.getcwd(),'data')
+    path = os.path.join(os.getcwd(), data_dir)
     if not os.path.exists(path):
         os.mkdir(path)
-    file = open(os.path.join(path,'md5.txt'),'w')
-    file.close()
     config["path"] = path
 
-    site = raw_input('Enter the Start site: ')
-    length = raw_input('Enter the ply length: ')
-    x=Summary(site,int(length), config)
-    x.run()
+    # User input
+    site = raw_input(site_q)
+    length = raw_input(ply_q)
 
-    file = open('config/config.conf','w')
+    # Run the program
+    Summary(site, int(length), config).run()
+
+    # Save final state
+    file = open(config_file, 'w')
     file.write('filenumber = '+repr(config["filenumber"])+'\n')
-    file.write('threshold = '+repr(config["threshold"]))
+    file.write('threshold = '+repr(config["threshold"])+'\n')
+    file.write('others = '+repr(config["others"]))
     file.close()
 
 
