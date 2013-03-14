@@ -20,13 +20,8 @@ along with hbcse-crawler.  If not, see <http://www.gnu.org/licenses/>.
 
 import urllib, urlparse, re, md5, os, sgmllib, string, datetime
 
-config_file = "crawler.conf"
 site_q = "Enter the start site: "
 ply_q = "Enter the ply length: "
-data_dir="data"
-filenumber = 86
-others = ['cnn', 'india']
-threshold = 1
 
 class StrippingParser(sgmllib.SGMLParser):
 
@@ -272,14 +267,11 @@ class Summary:
 
 if __name__ == "__main__":
     # Initialization
-    config = {}
-    execfile(config_file, config) 
-
-    path = os.path.join(os.getcwd(), data_dir)
+    config = {"threshold":1, "others":['cnn', 'india']}
+    path = os.path.join(os.getcwd(), "data")
     if not os.path.exists(path):
         os.mkdir(path)
     config["path"] = path
-    config["threshold"] = threshold
 
     # User input
     site = raw_input(site_q)
