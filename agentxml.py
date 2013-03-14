@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Copyright 2004, 2013 Vishwas Bhat, Apurva Pangam, Tarun Makhija, Vineet Jalali
-This file is part of hbcse-crawler.
 
 hbcse-crawler is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,7 +17,7 @@ You should have received a copy of the GNU General Public License
 along with hbcse-crawler.  If not, see <http://www.gnu.org/licenses/>. 
 """
 
-import urllib, urlparse, re, md5, os, sgmllib, string, datetime
+import urllib, urlparse, re, hashlib, os, sgmllib, string, datetime
 
 site_q = "Enter the start site: "
 ply_q = "Enter the ply length: "
@@ -96,18 +95,23 @@ def validurl(site):
     """Code to identify valid URL to find
     """
     try:
-        if urlparse.urlparse(site)[0]=='http' or urlparse.urlparse(site)[0]=='https' :
-            return [urllib.urlopen(site),1]
-        elif urlparse.urlparse(site)[0]=='':
-            site = urllib.urlopen('http://'+site)
-            return [site,1]
+	url = urlparse.urlparse(site)
+        if url[0]=='http' or url[0]=='https' :
+            site = site 
+        elif url[0]=='':
+            site = 'http://'+site
         else:
             print 'Invalid URL'
+	    return [None, 0]
     except IOError:
         print 'The Server is not found or is unreachable'
         return [None,0]
     except SystemExit:
             print 'Exit'
+	    return [None, 0]
+
+    site_contents = urllib.urlopen(site)
+    return [site_contents ,1]
 
 class Summary:
 
@@ -125,7 +129,7 @@ class Summary:
         """
         self.site = site
    	self.config=config
-        self.sign = md5.new()
+        self.sign = hashlib.md5()
         self.ply=i
         self.npara=0
         self.x = validurl(site)
@@ -279,5 +283,3 @@ if __name__ == "__main__":
 
     # Run the program
     Summary(site, int(length), config).run()
-
-
